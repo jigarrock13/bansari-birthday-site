@@ -7,6 +7,7 @@ const chunkDir = path.join(root, "deploy-bundle");
 const overridesDir = path.join(root, "deploy-overrides");
 const overrideBundlePath = path.join(root, "deploy-overrides.b64");
 const overrideBundleDir = path.join(root, "deploy-overrides-bundle");
+const extraOverrideBundleDir = path.join(root, "deploy-extra-overrides-bundle");
 let chunks = fs
   .readdirSync(chunkDir)
   .filter((name) => /^chunk-\d+\.txt$/.test(name))
@@ -49,28 +50,40 @@ function copyOverrides(sourceDir, relativeDir = "") {
   return count;
 }
 
+function readBundleChunks(bundleDir, pattern) {
+  if (!fs.existsSync(bundleDir)) return "";
+  return fs
+    .readdirSync(bundleDir)
+    .filter((name) => pattern.test(name))
+    .sort()
+    .map((name) => fs.readFileSync(path.join(bundleDir, name), "utf8"))
+    .join("");
+}
+
 function readOverrideBundle() {
   const parts = [];
   if (fs.existsSync(overrideBundlePath)) parts.push(fs.readFileSync(overrideBundlePath, "utf8"));
-  if (fs.existsSync(overrideBundleDir)) {
-    const chunkFiles = fs
-      .readdirSync(overrideBundleDir)
-      .filter((name) => /^override-\d+\.txt$/.test(name))
-      .sort();
-    for (const name of chunkFiles) parts.push(fs.readFileSync(path.join(overrideBundleDir, name), "utf8"));
-  }
+  parts.push(readBundleChunks(overrideBundleDir, /^override-\d+\.txt$/));
   return parts.join("").replace(/\s+/g, "");
 }
 
-function applyOverrideBundle() {
-  const raw = readOverrideBundle();
+function applyOverrideBundleFromRaw(raw) {
   if (!raw) return 0;
   const overrides = JSON.parse(zlib.gunzipSync(Buffer.from(raw, "base64")).toString("utf8"));
   for (const file of overrides.files || []) writePayloadFile(file);
   return (overrides.files || []).length;
 }
 
-const overrideCount = copyOverrides(overridesDir) + applyOverrideBundle();
+function applyOverrideBundle() {
+  return applyOverrideBundleFromRaw(readOverrideBundle());
+}
+
+function applyExtraOverrideBundle() {
+  const raw = readBundleChunks(extraOverrideBundleDir, /^extra-\d+\.txt$/).replace(/\s+/g, "");
+  return applyOverrideBundleFromRaw(raw);
+}
+
+const overrideCount = copyOverrides(overridesDir) + applyOverrideBundle() + applyExtraOverrideBundle();
 if (overrideCount) console.log(`Applied ${overrideCount} deployment override files.`);
 
 const supabaseUrl = process.env.SUPABASE_URL || "";
@@ -94,5 +107,6 @@ if (process.env.VERCEL) {
   fs.rmSync(chunkDir, { recursive: true, force: true });
   fs.rmSync(overridesDir, { recursive: true, force: true });
   fs.rmSync(overrideBundleDir, { recursive: true, force: true });
+  fs.rmSync(extraOverrideBundleDir, { recursive: true, force: true });
   fs.rmSync(overrideBundlePath, { force: true });
 }
