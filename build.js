@@ -5,6 +5,7 @@ const zlib = require("zlib");
 const root = __dirname;
 const chunkDir = path.join(root, "deploy-bundle");
 const overridesDir = path.join(root, "deploy-overrides");
+const overrideBundlePath = path.join(root, "deploy-overrides.b64");
 let chunks = fs
   .readdirSync(chunkDir)
   .filter((name) => /^chunk-\d+\.txt$/.test(name))
@@ -21,11 +22,13 @@ if (chunks.includes(knownChunkRepair)) {
 
 const payload = JSON.parse(zlib.gunzipSync(Buffer.from(chunks, "base64")).toString("utf8"));
 
-for (const file of payload.files) {
+function writePayloadFile(file) {
   const target = path.join(root, file.path);
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.writeFileSync(target, Buffer.from(file.content, "base64"));
 }
+
+for (const file of payload.files) writePayloadFile(file);
 
 function copyOverrides(sourceDir, relativeDir = "") {
   if (!fs.existsSync(sourceDir)) return 0;
@@ -45,7 +48,15 @@ function copyOverrides(sourceDir, relativeDir = "") {
   return count;
 }
 
-const overrideCount = copyOverrides(overridesDir);
+function applyOverrideBundle() {
+  if (!fs.existsSync(overrideBundlePath)) return 0;
+  const raw = fs.readFileSync(overrideBundlePath, "utf8").replace(/\s+/g, "");
+  const overrides = JSON.parse(zlib.gunzipSync(Buffer.from(raw, "base64")).toString("utf8"));
+  for (const file of overrides.files || []) writePayloadFile(file);
+  return (overrides.files || []).length;
+}
+
+const overrideCount = copyOverrides(overridesDir) + applyOverrideBundle();
 if (overrideCount) console.log(`Applied ${overrideCount} deployment override files.`);
 
 const supabaseUrl = process.env.SUPABASE_URL || "";
@@ -68,4 +79,5 @@ console.log(`Unpacked ${payload.files.length} site files and wrote runtime-confi
 if (process.env.VERCEL) {
   fs.rmSync(chunkDir, { recursive: true, force: true });
   fs.rmSync(overridesDir, { recursive: true, force: true });
+  fs.rmSync(overrideBundlePath, { force: true });
 }
