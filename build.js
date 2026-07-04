@@ -6,6 +6,7 @@ const root = __dirname;
 const chunkDir = path.join(root, "deploy-bundle");
 const overridesDir = path.join(root, "deploy-overrides");
 const overrideBundlePath = path.join(root, "deploy-overrides.b64");
+const overrideBundleDir = path.join(root, "deploy-overrides-bundle");
 let chunks = fs
   .readdirSync(chunkDir)
   .filter((name) => /^chunk-\d+\.txt$/.test(name))
@@ -48,9 +49,22 @@ function copyOverrides(sourceDir, relativeDir = "") {
   return count;
 }
 
+function readOverrideBundle() {
+  const parts = [];
+  if (fs.existsSync(overrideBundlePath)) parts.push(fs.readFileSync(overrideBundlePath, "utf8"));
+  if (fs.existsSync(overrideBundleDir)) {
+    const chunkFiles = fs
+      .readdirSync(overrideBundleDir)
+      .filter((name) => /^override-\d+\.txt$/.test(name))
+      .sort();
+    for (const name of chunkFiles) parts.push(fs.readFileSync(path.join(overrideBundleDir, name), "utf8"));
+  }
+  return parts.join("").replace(/\s+/g, "");
+}
+
 function applyOverrideBundle() {
-  if (!fs.existsSync(overrideBundlePath)) return 0;
-  const raw = fs.readFileSync(overrideBundlePath, "utf8").replace(/\s+/g, "");
+  const raw = readOverrideBundle();
+  if (!raw) return 0;
   const overrides = JSON.parse(zlib.gunzipSync(Buffer.from(raw, "base64")).toString("utf8"));
   for (const file of overrides.files || []) writePayloadFile(file);
   return (overrides.files || []).length;
@@ -79,5 +93,6 @@ console.log(`Unpacked ${payload.files.length} site files and wrote runtime-confi
 if (process.env.VERCEL) {
   fs.rmSync(chunkDir, { recursive: true, force: true });
   fs.rmSync(overridesDir, { recursive: true, force: true });
+  fs.rmSync(overrideBundleDir, { recursive: true, force: true });
   fs.rmSync(overrideBundlePath, { force: true });
 }
