@@ -181,6 +181,10 @@ function applyMusicAdminPatch() {
         '    return "Choose a photo from your phone.";',
         '  }'
       ].join("\n"));
+      next = next.replace(
+        'text: field.uploadType === "video" ? "Choose a video from your phone." : "Choose a photo from your phone."',
+        'text: field.uploadType === "audio" ? "Choose a song or audio file from your phone." : field.uploadType === "video" ? "Choose a video from your phone." : "Choose a photo from your phone."'
+      );
     }
 
     if (!next.includes('field.uploadType === "audio" && field.path === "music.src"')) {
