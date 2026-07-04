@@ -209,6 +209,22 @@ function applyMusicAdminPatch() {
       );
     }
 
+    if (!next.includes('const control = $(`[data-path="${field.path}"]`, fieldElement);')) {
+      const fieldUploadBlock = [
+        '      const fieldElement = createField(field, value);',
+        '      if (field.uploadType) {',
+        '        const control = $(`[data-path="${field.path}"]`, fieldElement);',
+        '        if (control) fieldElement.appendChild(createUploadControl(field, control));',
+        '      }',
+        '      grid.appendChild(fieldElement);'
+      ].join("\n");
+      next = next.replace('      grid.appendChild(createField(field, value));', fieldUploadBlock);
+      next = next.replace(
+        '      const fieldElement = createField(field, value);\n      grid.appendChild(fieldElement);',
+        fieldUploadBlock
+      );
+    }
+
     if (!next.includes('function renderMusicEditor()')) {
       const renderMusicEditor = [
         '  function renderMusicEditor() {',
