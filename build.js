@@ -4,13 +4,19 @@ const zlib = require("zlib");
 
 const root = __dirname;
 const chunkDir = path.join(root, "deploy-bundle");
-const chunks = fs
+let chunks = fs
   .readdirSync(chunkDir)
   .filter((name) => /^chunk-\d+\.txt$/.test(name))
   .sort()
   .map((name) => fs.readFileSync(path.join(chunkDir, name), "utf8"))
   .join("")
   .replace(/\s+/g, "");
+
+const knownChunkRepair = "IzPVwMbps3GV8gvzu17mRfEAuA";
+if (chunks.includes(knownChunkRepair)) {
+  chunks = chunks.replace(knownChunkRepair, "IzPVwPbsMbps3GV8gvzu17mRfEAuA");
+  console.log("Applied deployment bundle chunk repair.");
+}
 
 const payload = JSON.parse(zlib.gunzipSync(Buffer.from(chunks, "base64")).toString("utf8"));
 
